@@ -1,59 +1,69 @@
+#include <linux/init.h>
 #include <linux/module.h>
-#include <linux/time.h>
-#include <linux/timer.h>
+#include <linux/kernel.h>
+#include <linux/kthread.h>
+#include <linux/delay.h>
 #include <linux/fs.h>
+#include <linux/path.h>
 #include <linux/namei.h>
-#include <linux/string.h>
+#include <linux/timekeeping.h>
 
-static struct timespec64 load_time;
-static struct timer_list timer;
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("OpenAI");
+MODULE_DESCRIPTION("A kernel module to check the modified time of /etc/hosts");
+MODULE_VERSION("0.1");
 
-static void check_hosts_modified(struct timer_list *t)
-{
-    struct inode *inode;
-    struct path path;
-    struct timespec64 mtime;
+static struct task_struct *monitor_thread;
+static time64_t load_time;
+
+static int monitor_function(void *data) {
+    struct path hosts_path;
+    struct kstat hosts_stat;
     int err;
 
-    err = kern_path("/etc/hosts", LOOKUP_FOLLOW, &path);
-    // obtain the path to the file
-    if (err) {
-        printk(KERN_ALERT "err: %d", err);
-        // printk(KERN_ALERT "%s", strerror(err));
-    }
-    else {
-        // obtain the inode struct
-        inode = path.dentry->d_inode;
-        mtime = inode->i_mtime;
-        if (timespec64_compare(&mtime, &load_time) > 0) {
-            // panic("lockhosts: /etc/hosts was modified");
-            printk(KERN_ALERT "lockhosts: would panic, /etc/hosts was modified");
+    while (!kthread_should_stop()) {
+        err = kern_path("/etc/hosts", LOOKUP_FOLLOW, &hosts_path);
+        if (err) {
+            printk(KERN_WARNING "Failed to find /etc/hosts: %d\n", err);
+        } else {
+            err = vfs_getattr(&hosts_path, &hosts_stat, STATX_MTIME, AT_STATX_SYNC_AS_STAT);
+            if (err) {
+                printk(KERN_WARNING "Failed to get /etc/hosts attributes: %d\n", err);
+            } else if (hosts_stat.mtime.tv_sec > load_time) {
+                printk(KERN_INFO "modified!\n");
+            }
+            path_put(&hosts_path);
         }
-        else {
-            printk(KERN_ALERT "lockhosts: all ok");
-        }
-    }
-    mod_timer(&timer, jiffies + HZ);
-    
-}
 
-static int __init lockhosts_init(void)
-{
-    ktime_get_real_ts64(&load_time);
-    timer_setup(&timer, check_hosts_modified, 0);
-    mod_timer(&timer, jiffies + HZ);
+        msleep(1000);
+    }
+
     return 0;
 }
 
-static void __exit lockhosts_exit(void)
-{
-    del_timer(&timer);
-    // panic("lockhosts module unloaded\n");
-    printk(KERN_ALERT "lockhosts: lockhosts module unloaded");
+static int __init hosts_monitor_init(void) {
+    printk(KERN_INFO "Loading hosts monitor module\n");
+
+    load_time = ktime_get_real_seconds();
+    monitor_thread = kthread_run(monitor_function, NULL, "hosts_monitor");
+    if (IS_ERR(monitor_thread)) {
+        printk(KERN_WARNING "Failed to create monitor thread: %ld\n", PTR_ERR(monitor_thread));
+        return PTR_ERR(monitor_thread);
+    }
+
+    return 0;
 }
 
-MODULE_AUTHOR("ChatGPT and Chris Billington");
-MODULE_LICENSE("GPL");
+static void __exit hosts_monitor_exit(void) {
+    int ret;
 
-module_init(lockhosts_init);
-module_exit(lockhosts_exit);
+    ret = kthread_stop(monitor_thread);
+    if (ret < 0) {
+        printk(KERN_WARNING "Failed to stop monitor thread: %d\n", ret);
+    } else {
+        printk(KERN_INFO "unloaded!\n");
+    }
+}
+
+module_init(hosts_monitor_init);
+module_exit(hosts_monitor_exit);
