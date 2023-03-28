@@ -54,16 +54,4 @@ static int __init hosts_monitor_init(void) {
     return 0;
 }
 
-static void __exit hosts_monitor_exit(void) {
-    int ret;
-
-    ret = kthread_stop(monitor_thread);
-    if (ret < 0) {
-        printk(KERN_WARNING "Failed to stop monitor thread: %d\n", ret);
-    } else {
-        printk(KERN_INFO "unloaded!\n");
-    }
-}
-
 module_init(hosts_monitor_init);
-module_exit(hosts_monitor_exit);
