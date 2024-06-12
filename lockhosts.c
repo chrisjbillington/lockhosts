@@ -12,9 +12,9 @@
 #include <linux/slab.h>
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("OpenAI");
+MODULE_AUTHOR("Chris Billington and GPT-4");
 MODULE_DESCRIPTION("Prevent modification to /etc/hosts");
-MODULE_VERSION("0.1");
+MODULE_VERSION("1.0");
 
 static struct task_struct *monitor_thread;
 static char *original_hosts_content = NULL;
@@ -110,8 +110,8 @@ static int monitor_function(void *data) {
 
 
 
-static int __init hosts_monitor_init(void) {
-    printk(KERN_INFO "Loading hosts monitor module\n");
+static int __init lockhosts_init(void) {
+    printk(KERN_INFO "Loading lockhosts module\n");
 
     original_hosts_size = read_file("/etc/hosts", &original_hosts_content);
     if (original_hosts_size < 0) {
@@ -119,7 +119,7 @@ static int __init hosts_monitor_init(void) {
         return original_hosts_size;
     }
 
-    monitor_thread = kthread_run(monitor_function, NULL, "hosts_monitor");
+    monitor_thread = kthread_run(monitor_function, NULL, "lockhosts");
     if (IS_ERR(monitor_thread)) {
         printk(KERN_WARNING "Failed to create monitor thread: %ld\n", PTR_ERR(monitor_thread));
         kfree(original_hosts_content);
@@ -130,18 +130,18 @@ static int __init hosts_monitor_init(void) {
 }
 
 
-// static void __exit hosts_monitor_exit(void) {
+// static void __exit lockhosts_exit(void) {
 //     int ret;
 
 //     ret = kthread_stop(monitor_thread);
 //     if (ret < 0) {
 //         printk(KERN_WARNING "Failed to stop monitor thread: %d\n", ret);
 //     } else {
-//         printk(KERN_INFO "Unloaded hosts monitor module.\n");
+//         printk(KERN_INFO "Unloaded lockhosts module.\n");
 //     }
 //     kfree(original_hosts_content);
 // }
 
-module_init(hosts_monitor_init);
-// module_exit(hosts_monitor_exit);
+module_init(lockhosts_init);
+// module_exit(lockhosts_exit);
 
