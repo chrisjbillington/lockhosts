@@ -42,13 +42,13 @@ prefer to just rebuild it every time by putting a function like this in my bashr
 blocksocial ()
 {
     # Uncomment lines in /etc/hosts containing "twitter" or "reddit"
-    sudo sed -i '/twitter/s/^#//g' /etc/hosts;
-    sudo sed -i '/reddit/s/^#//g' /etc/hosts;
+    sudo sed -i '/twitter/s/^#//g' /etc/hosts
+    sudo sed -i '/reddit/s/^#//g' /etc/hosts
     # Rebuild and load lockhosts module:
-    cd /path/to/lockhosts/folder;
-    make clean;
-    make;
-    sudo insmod lockhosts.ko;
+    cd /path/to/lockhosts/folder
+    make clean
+    make
+    sudo insmod lockhosts.ko
     cd -
 }
 ```
